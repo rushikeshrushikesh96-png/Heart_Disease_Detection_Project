@@ -1,0 +1,89 @@
+{
+  "features": [
+    "age_years",
+    "gender",
+    "bmi",
+    "ap_hi",
+    "ap_lo",
+    "pulse_pressure",
+    "cholesterol",
+    "gluc",
+    "smoke",
+    "alco",
+    "active"
+  ],
+  "display": {
+    "age_years": "Age (years)",
+    "gender": "Gender",
+    "bmi": "BMI (body mass index)",
+    "ap_hi": "Systolic BP (upper)",
+    "ap_lo": "Diastolic BP (lower)",
+    "pulse_pressure": "Pulse pressure",
+    "cholesterol": "Cholesterol level",
+    "gluc": "Glucose level",
+    "smoke": "Smoker",
+    "alco": "Alcohol intake",
+    "active": "Physically active"
+  },
+  "plain": {
+    "age_years": "How old the patient is. Heart risk rises with age.",
+    "gender": "0 = female, 1 = male.",
+    "bmi": "Weight compared to height. Above 25 is overweight, above 30 is obese.",
+    "ap_hi": "Top blood-pressure number. Above 140 is high.",
+    "ap_lo": "Bottom blood-pressure number. Above 90 is high.",
+    "pulse_pressure": "Systolic minus diastolic. A wide gap means stiff arteries.",
+    "cholesterol": "1 = normal, 2 = above normal, 3 = well above normal.",
+    "gluc": "Blood sugar. 1 = normal, 2 = above normal, 3 = well above normal.",
+    "smoke": "0 = does not smoke, 1 = smokes.",
+    "alco": "0 = does not drink, 1 = drinks alcohol.",
+    "active": "0 = not physically active, 1 = physically active."
+  },
+  "ranges": {
+    "age_years": [
+      30.0,
+      70.0
+    ],
+    "bmi": [
+      15.0,
+      50.0
+    ],
+    "ap_hi": [
+      90,
+      200
+    ],
+    "ap_lo": [
+      60,
+      130
+    ]
+  },
+  "dataset": {
+    "rows_raw": 70000,
+    "rows_clean": 68052,
+    "removed": 1948,
+    "n_features": 11,
+    "train": 54441,
+    "test": 13611,
+    "positive_rate": 49.45923705401752
+  },
+  "agreement": {
+    "pair_lr_rf": 5.222448965478657,
+    "pair_lr_svm": 5.532405637877246,
+    "pair_rf_svm": 4.659201081014787,
+    "mean_spread": 7.707027842185345,
+    "median_spread": 6.404371363643602,
+    "within_10pp": 76.01204907795166
+  },
+  "feature_means": {
+    "age_years": 53.29602872834811,
+    "gender": 0.3489281974982091,
+    "bmi": 27.38649271688617,
+    "ap_hi": 126.61121213791077,
+    "ap_lo": 81.30105986297092,
+    "pulse_pressure": 45.310152274939846,
+    "cholesterol": 1.3631454234859757,
+    "gluc": 1.224757076468103,
+    "smoke": 0.08770963060928344,
+    "alco": 0.053011517055160634,
+    "active": 0.8034569533990926
+  }
+}

@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+# NOTE: .streamlit/config.toml is intentionally NOT ignored — it forces the
+# light theme that keeps every heading and coloured box readable. Only
+# runtime secrets/cache should ever be excluded here.
+.streamlit/secrets.toml
+venv/
