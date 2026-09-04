@@ -668,6 +668,225 @@ elif PAGE == "🩺 Patient Prediction":
 
     section("📄 Download this patient's report")
 
+    def build_patient_pdf(patient, vals, avg, spread, label, bmi_v, summary_html):
+        import io, uuid
+        from datetime import datetime
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import cm
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
+        from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
+                                        TableStyle, HRFlowable)
+
+        NAVY = colors.HexColor("#1E3A5F")
+        GRAY = colors.HexColor("#475569")
+        LIGHT_GRAY = colors.HexColor("#F1F5F9")
+        BORDER = colors.HexColor("#CBD5E1")
+        RED = colors.HexColor("#B91C1C")
+        AMBER = colors.HexColor("#B45309")
+        GREEN = colors.HexColor("#15803D")
+        RISK_COLOUR = {"LOW RISK": GREEN, "MODERATE RISK": AMBER, "HIGH RISK": RED}.get(label, NAVY)
+
+        report_id = "HD-" + uuid.uuid4().hex[:8].upper()
+        generated = datetime.now().strftime("%d %b %Y, %I:%M %p")
+
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=1.1*cm, bottomMargin=1.1*cm,
+                                leftMargin=1.8*cm, rightMargin=1.8*cm,
+                                title="Cardiovascular Risk Assessment Report")
+        styles = getSampleStyleSheet()
+
+        meta_style = ParagraphStyle("Meta", fontSize=8.3, textColor=GRAY, fontName="Helvetica")
+        meta_right = ParagraphStyle("MetaR", parent=meta_style, alignment=TA_RIGHT)
+        title_style = ParagraphStyle("Title", fontSize=16.5, leading=21, textColor=NAVY,
+                                     fontName="Helvetica-Bold", alignment=TA_CENTER,
+                                     spaceBefore=10, spaceAfter=4)
+        subtitle_style = ParagraphStyle("Sub", fontSize=9.5, leading=13, textColor=GRAY,
+                                        fontName="Helvetica-Oblique", alignment=TA_CENTER,
+                                        spaceBefore=0, spaceAfter=6)
+        notice_style = ParagraphStyle("Notice", fontSize=8, textColor=AMBER,
+                                      fontName="Helvetica-Bold", alignment=TA_CENTER, spaceAfter=10)
+        head_style = ParagraphStyle("H", fontSize=10.5, textColor=colors.white,
+                                    fontName="Helvetica-Bold", backColor=NAVY,
+                                    spaceBefore=8, spaceAfter=4, leftIndent=6, borderPadding=4)
+        body_style = ParagraphStyle("B", fontSize=9.6, leading=14, textColor=colors.HexColor("#1E293B"))
+        footer_style = ParagraphStyle("F", fontSize=7.6, leading=10.5, textColor=GRAY)
+
+        def to_hex(colour):
+            r, g, b = [int(round(c * 255)) for c in (colour.red, colour.green, colour.blue)]
+            return f"#{r:02X}{g:02X}{b:02X}"
+
+        def flag_style(text, colour):
+            return f'<font color="{to_hex(colour)}"><b>{text}</b></font>'
+
+        # -------- header block (letterhead-style) --------
+        story = []
+        hdr = Table([[Paragraph("Report Type: Cardiovascular Risk Screening", meta_style),
+                     Paragraph(f"Report ID: {report_id}<br/>Generated: {generated}", meta_right)]],
+                   colWidths=[9*cm, 8.5*cm])
+        hdr.setStyle(TableStyle([("VALIGN", (0,0), (-1,-1), "TOP"),
+                                 ("TOPPADDING", (0,0), (-1,-1), 0), ("BOTTOMPADDING", (0,0), (-1,-1), 0)]))
+        story.append(hdr)
+        story.append(Spacer(1, 3))
+        story.append(HRFlowable(width="100%", thickness=1.3, color=NAVY))
+        story.append(Paragraph("CARDIOVASCULAR DISEASE RISK ASSESSMENT", title_style))
+        story.append(Paragraph("Machine Learning-Based Screening Report", subtitle_style))
+        story.append(HRFlowable(width="100%", thickness=1.3, color=NAVY))
+        story.append(Spacer(1, 4))
+        story.append(Paragraph(
+            "FOR ACADEMIC / RESEARCH USE ONLY &nbsp;&mdash;&nbsp; NOT A CLINICAL DIAGNOSIS", notice_style))
+
+        # -------- patient information --------
+        story.append(Paragraph("PATIENT INFORMATION", head_style))
+        pinfo = [
+            ["Age", f"{patient['age']:.0f} Years", "Sex", "Male" if patient["gender"] else "Female"],
+            ["Height", f"{patient['height']} cm", "Weight", f"{patient['weight']} kg"],
+            ["BMI", f"{bmi_v} kg/m\u00b2", "Report Date", datetime.now().strftime("%d %b %Y")],
+        ]
+        pt = Table(pinfo, colWidths=[2.6*cm, 5.7*cm, 2.6*cm, 5.7*cm])
+        pt.setStyle(TableStyle([
+            ("FONTNAME", (0,0), (0,-1), "Helvetica-Bold"), ("FONTNAME", (2,0), (2,-1), "Helvetica-Bold"),
+            ("FONTSIZE", (0,0), (-1,-1), 9.3), ("TEXTCOLOR", (0,0), (-1,-1), colors.HexColor("#1E293B")),
+            ("GRID", (0,0), (-1,-1), 0.5, BORDER),
+            ("TOPPADDING", (0,0), (-1,-1), 4), ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            ("LEFTPADDING", (0,0), (-1,-1), 7),
+        ]))
+        story.append(pt)
+
+        # -------- clinical parameters (lab-report style, with reference ranges) --------
+        story.append(Paragraph("VITAL &amp; CLINICAL PARAMETERS", head_style))
+        pp = patient["ap_hi"] - patient["ap_lo"]
+        chol_lbl = ["Normal", "Above normal", "Well above normal"][patient["cholesterol"] - 1]
+        gluc_lbl = ["Normal", "Above normal", "Well above normal"][patient["gluc"] - 1]
+
+        def bp_flag():
+            if patient["ap_hi"] < 130 and patient["ap_lo"] < 85: return "Normal", GREEN
+            if patient["ap_hi"] < 140 and patient["ap_lo"] < 90: return "Elevated", AMBER
+            return "High", RED
+        def pp_flag():
+            return ("Normal", GREEN) if 30 <= pp <= 50 else ("Unusual", AMBER)
+        def bmi_flag():
+            if bmi_v < 25: return "Normal", GREEN
+            if bmi_v < 30: return "Overweight", AMBER
+            return "Obese", RED
+        def level_flag(v):
+            return [("Normal", GREEN), ("Above normal", AMBER), ("Well above normal", RED)][v-1]
+        def yn_flag(v, bad_word, good_word, bad_is_high=True):
+            return (bad_word, RED) if (v and bad_is_high) or (not v and not bad_is_high) else (good_word, GREEN)
+
+        bp_f, bp_c = bp_flag(); pp_f, pp_c = pp_flag(); bmi_f, bmi_c = bmi_flag()
+        chol_f, chol_c = level_flag(patient["cholesterol"]); gluc_f, gluc_c = level_flag(patient["gluc"])
+        smoke_f, smoke_c = ("Smoker", RED) if patient["smoke"] else ("Non-smoker", GREEN)
+        alco_f, alco_c = ("Consumes alcohol", AMBER) if patient["alco"] else ("Does not drink", GREEN)
+        act_f, act_c = ("Active", GREEN) if patient["active"] else ("Sedentary", RED)
+
+        header_style = ParagraphStyle("THead", parent=body_style, textColor=colors.white,
+                                      fontName="Helvetica-Bold", fontSize=9)
+        flag_para_style = ParagraphStyle("Flag", parent=body_style, fontSize=9.4)
+
+        raw_rows = [["Systolic BP (upper)", f"{patient['ap_hi']} mmHg", "90 - 129 mmHg", (bp_f, bp_c)],
+                    ["Diastolic BP (lower)", f"{patient['ap_lo']} mmHg", "60 - 84 mmHg", (bp_f, bp_c)],
+                    ["Pulse Pressure", f"{pp} mmHg", "30 - 50 mmHg", (pp_f, pp_c)],
+                    ["Body Mass Index", f"{bmi_v} kg/m\u00b2", "18.5 - 24.9 kg/m\u00b2", (bmi_f, bmi_c)],
+                    ["Cholesterol Level", chol_lbl, "Normal", (chol_f, chol_c)],
+                    ["Glucose Level", gluc_lbl, "Normal", (gluc_f, gluc_c)],
+                    ["Smoking Status", "Yes" if patient["smoke"] else "No", "Non-smoker", (smoke_f, smoke_c)],
+                    ["Alcohol Intake", "Yes" if patient["alco"] else "No", "None / Occasional", (alco_f, alco_c)],
+                    ["Physical Activity", "Yes" if patient["active"] else "No", "Regularly active", (act_f, act_c)]]
+
+        rows = [[Paragraph("Parameter", header_style), Paragraph("Result", header_style),
+                 Paragraph("Reference Range", header_style), Paragraph("Flag", header_style)]]
+        for name, result, ref, (flag_text, flag_colour) in raw_rows:
+            rows.append([Paragraph(name, body_style), Paragraph(result, body_style),
+                        Paragraph(ref, body_style),
+                        Paragraph(flag_style(flag_text, flag_colour), flag_para_style)])
+        ct = Table(rows, colWidths=[4.3*cm, 3.4*cm, 4.3*cm, 4.6*cm])
+        style_cmds = [
+            ("BACKGROUND", (0,0), (-1,0), NAVY), ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+            ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"), ("FONTSIZE", (0,0), (-1,-1), 9),
+            ("GRID", (0,0), (-1,-1), 0.5, BORDER), ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+            ("TOPPADDING", (0,0), (-1,-1), 3.6), ("BOTTOMPADDING", (0,0), (-1,-1), 3.6),
+        ]
+        for i in range(1, len(rows)):
+            if i % 2 == 0:
+                style_cmds.append(("BACKGROUND", (0,i), (-1,i), LIGHT_GRAY))
+        ct.setStyle(TableStyle(style_cmds))
+        story.append(ct)
+        story.append(Paragraph(
+            "Reference ranges reflect commonly used general adult screening thresholds and are "
+            "provided for context only.", ParagraphStyle("Small", fontSize=7.3, textColor=GRAY,
+            spaceBefore=2, spaceAfter=2)))
+
+        # -------- AI risk prediction --------
+        story.append(Paragraph("AI-BASED RISK PREDICTION", head_style))
+        bold_body = ParagraphStyle("BB", parent=body_style, fontName="Helvetica-Bold")
+        mrows_raw = [["Model", "Predicted Probability"],
+                    ["Logistic Regression", f"{vals['Logistic Regression']*100:.1f}%"],
+                    ["Random Forest", f"{vals['Random Forest']*100:.1f}%"],
+                    ["Support Vector Machine", f"{vals['SVM']*100:.1f}%"],
+                    ["Combined Average", f"{avg*100:.1f}%"]]
+        mrows = [[Paragraph(c, header_style) for c in mrows_raw[0]]]
+        for r in mrows_raw[1:-1]:
+            mrows.append([Paragraph(c, body_style) for c in r])
+        mrows.append([Paragraph(c, bold_body) for c in mrows_raw[-1]])
+        mt = Table(mrows, colWidths=[10.6*cm, 6*cm])
+        mt.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), NAVY),
+            ("BACKGROUND", (0,-1), (-1,-1), LIGHT_GRAY),
+            ("FONTSIZE", (0,0), (-1,-1), 9.3), ("GRID", (0,0), (-1,-1), 0.5, BORDER),
+            ("TOPPADDING", (0,0), (-1,-1), 4), ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+        ]))
+        story.append(mt)
+        story.append(Paragraph(
+            f"Model agreement: predictions of the three models are within {spread*100:.1f} "
+            f"percentage points of one another.",
+            ParagraphStyle("Small2", fontSize=7.6, textColor=GRAY, spaceBefore=2, spaceAfter=5)))
+
+        # -------- risk category stamp --------
+        stamp = Table([[Paragraph(f"OVERALL RISK CATEGORY: <b>{label}</b> &nbsp;"
+                                  f"(Estimated probability: {avg*100:.1f}%)",
+                                  ParagraphStyle("Stamp", fontSize=11, alignment=TA_CENTER,
+                                                textColor=RISK_COLOUR, fontName="Helvetica-Bold"))]],
+                       colWidths=[16.6*cm])
+        stamp.setStyle(TableStyle([
+            ("BOX", (0,0), (-1,-1), 1.3, RISK_COLOUR), ("TOPPADDING", (0,0), (-1,-1), 6),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 6), ("BACKGROUND", (0,0), (-1,-1), colors.white),
+        ]))
+        story.append(stamp)
+        story.append(Spacer(1, 3))
+
+        # -------- clinical interpretation --------
+        story.append(Paragraph("CLINICAL INTERPRETATION", head_style))
+        story.append(Paragraph(summary_html, body_style))
+
+        # -------- footer --------
+        story.append(Spacer(1, 8))
+        story.append(HRFlowable(width="100%", thickness=0.6, color=BORDER))
+        story.append(Spacer(1, 4))
+        story.append(Paragraph(
+            "This is a computer-generated report produced by an academic machine-learning system. "
+            "It has not been reviewed by a licensed physician, has not been clinically validated, "
+            "and does not constitute a medical diagnosis. It must not be used as a substitute for "
+            "professional medical advice, examination, or treatment. Always consult a qualified "
+            "doctor for any health concerns.", footer_style))
+        story.append(Spacer(1, 3))
+        ft = Table([[Paragraph(f"Report ID: {report_id}", footer_style),
+                    Paragraph("Electronically generated \u2014 no signature required",
+                             ParagraphStyle("FC", parent=footer_style, alignment=TA_CENTER)),
+                    Paragraph("Page 1 of 1", ParagraphStyle("FR", parent=footer_style, alignment=TA_RIGHT))]],
+                   colWidths=[5.5*cm, 5.6*cm, 5.5*cm])
+        ft.setStyle(TableStyle([("TOPPADDING", (0,0), (-1,-1), 0), ("BOTTOMPADDING", (0,0), (-1,-1), 0)]))
+        story.append(ft)
+
+        doc.build(story)
+        return buf.getvalue()
+
+    pdf_bytes = build_patient_pdf(PATIENT, vals, avg, spread, label, bmi_v, txt)
+    st.download_button("⬇️ Download patient report (PDF)", pdf_bytes,
+                       f"heart_risk_report_{PATIENT['age']:.0f}yo.pdf", "application/pdf",
+                       type="primary")
+
 # ===============================================================
 #  PAGE 3 — SHAP EXPLANATION
 # ===============================================================
