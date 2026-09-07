@@ -692,6 +692,7 @@ elif PAGE == "🩺 Patient Prediction":
         generated = datetime.now().strftime("%d %b %Y, %I:%M %p")
 
         buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=0.9*cm, bottomMargin=0.9*cm,
                                 leftMargin=1.8*cm, rightMargin=1.8*cm,
                                 title="Cardiovascular Risk Assessment Report")
         styles = getSampleStyleSheet()
@@ -706,7 +707,9 @@ elif PAGE == "🩺 Patient Prediction":
                                         spaceBefore=0, spaceAfter=6)
         notice_style = ParagraphStyle("Notice", fontSize=8, textColor=AMBER,
                                       fontName="Helvetica-Bold", alignment=TA_CENTER, spaceAfter=10)
+        head_style = ParagraphStyle("H", fontSize=10, textColor=colors.white,
                                     fontName="Helvetica-Bold", backColor=NAVY,
+                                    spaceBefore=6, spaceAfter=3, leftIndent=6, borderPadding=3.5)
         body_style = ParagraphStyle("B", fontSize=9.3, leading=12.6, textColor=colors.HexColor("#1E293B"))
         footer_style = ParagraphStyle("F", fontSize=7.6, leading=10.5, textColor=GRAY)
 
