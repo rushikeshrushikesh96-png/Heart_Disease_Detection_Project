@@ -692,7 +692,6 @@ elif PAGE == "🩺 Patient Prediction":
         generated = datetime.now().strftime("%d %b %Y, %I:%M %p")
 
         buf = io.BytesIO()
-        doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=1.1*cm, bottomMargin=1.1*cm,
                                 leftMargin=1.8*cm, rightMargin=1.8*cm,
                                 title="Cardiovascular Risk Assessment Report")
         styles = getSampleStyleSheet()
@@ -707,10 +706,8 @@ elif PAGE == "🩺 Patient Prediction":
                                         spaceBefore=0, spaceAfter=6)
         notice_style = ParagraphStyle("Notice", fontSize=8, textColor=AMBER,
                                       fontName="Helvetica-Bold", alignment=TA_CENTER, spaceAfter=10)
-        head_style = ParagraphStyle("H", fontSize=10.5, textColor=colors.white,
                                     fontName="Helvetica-Bold", backColor=NAVY,
-                                    spaceBefore=8, spaceAfter=4, leftIndent=6, borderPadding=4)
-        body_style = ParagraphStyle("B", fontSize=9.6, leading=14, textColor=colors.HexColor("#1E293B"))
+        body_style = ParagraphStyle("B", fontSize=9.3, leading=12.6, textColor=colors.HexColor("#1E293B"))
         footer_style = ParagraphStyle("F", fontSize=7.6, leading=10.5, textColor=GRAY)
 
         def to_hex(colour):
@@ -806,7 +803,7 @@ elif PAGE == "🩺 Patient Prediction":
             ("BACKGROUND", (0,0), (-1,0), NAVY), ("TEXTCOLOR", (0,0), (-1,0), colors.white),
             ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"), ("FONTSIZE", (0,0), (-1,-1), 9),
             ("GRID", (0,0), (-1,-1), 0.5, BORDER), ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-            ("TOPPADDING", (0,0), (-1,-1), 3.6), ("BOTTOMPADDING", (0,0), (-1,-1), 3.6),
+            ("TOPPADDING", (0,0), (-1,-1), 3), ("BOTTOMPADDING", (0,0), (-1,-1), 3),
         ]
         for i in range(1, len(rows)):
             if i % 2 == 0:
@@ -835,7 +832,7 @@ elif PAGE == "🩺 Patient Prediction":
             ("BACKGROUND", (0,0), (-1,0), NAVY),
             ("BACKGROUND", (0,-1), (-1,-1), LIGHT_GRAY),
             ("FONTSIZE", (0,0), (-1,-1), 9.3), ("GRID", (0,0), (-1,-1), 0.5, BORDER),
-            ("TOPPADDING", (0,0), (-1,-1), 4), ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            ("TOPPADDING", (0,0), (-1,-1), 3.4), ("BOTTOMPADDING", (0,0), (-1,-1), 3.4),
         ]))
         story.append(mt)
         story.append(Paragraph(
