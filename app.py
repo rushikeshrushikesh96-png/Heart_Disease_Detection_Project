@@ -124,6 +124,19 @@ st.markdown("""
 .pill {display:inline-block; padding:4px 13px; border-radius:20px; font-size:13px;
        font-weight:700; color:#fff; margin:2px;}
 div[data-testid="stMetricValue"] {font-size:26px;}
+
+/* --- mobile phones: shrink the big display text so nothing overflows
+   or forces sideways scrolling on a narrow screen --- */
+@media (max-width: 480px) {
+  .hero {padding:18px 18px;}
+  .hero h1 {font-size:23px;}
+  .hero p {font-size:13.5px;}
+  .verdict .v {font-size:36px;}
+  .verdict .t {font-size:13px; letter-spacing:1px;}
+  .kpi .value {font-size:22px;}
+  .kpi .label {font-size:11px;}
+  .sec {font-size:17px; padding:10px 14px;}
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -331,10 +344,12 @@ with st.sidebar:
 
     st.divider()
     st.markdown("### 🧾 Patient details")
-    st.caption("These values are used on the Prediction, SHAP and LIME pages.")
+    st.caption("👉 Fill in the details below, then open **Patient Prediction** to see the result.")
 
-    preset = st.selectbox("Quick example", ["Custom", "Healthy young adult",
-                                            "Average middle-aged", "High-risk senior"])
+    preset = st.selectbox("Quick example (optional)", ["Custom", "Healthy young adult",
+                                            "Average middle-aged", "High-risk senior"],
+                          help="Pick a ready-made example to try the app instantly, or "
+                               "choose 'Custom' and fill in your own numbers below.")
     P = {"Healthy young adult": dict(age=32, gender=0, height=165, weight=58, ap_hi=112,
                                      ap_lo=72, cholesterol=1, gluc=1, smoke=0, alco=0, active=1),
          "Average middle-aged": dict(age=52, gender=1, height=172, weight=80, ap_hi=130,
@@ -344,27 +359,44 @@ with st.sidebar:
          }.get(preset, dict(age=50, gender=0, height=165, weight=72, ap_hi=125, ap_lo=82,
                             cholesterol=1, gluc=1, smoke=0, alco=0, active=1))
 
-    c1, c2 = st.columns(2)
-    age = c1.slider("Age (years)", 30, 70, P["age"])
-    gender = c2.selectbox("Gender", [0, 1], index=P["gender"],
-                          format_func=lambda x: "Female" if x == 0 else "Male")
-    height = c1.slider("Height (cm)", 140, 200, P["height"])
-    weight = c2.slider("Weight (kg)", 40, 150, P["weight"])
-    ap_hi = c1.slider("Systolic BP (upper)", 90, 200, P["ap_hi"])
-    ap_lo = c2.slider("Diastolic BP (lower)", 60, 130, P["ap_lo"])
+    # Single-column layout on purpose: side-by-side sliders get cramped and
+    # hard to drag accurately on a phone screen. Stacked controls are easier
+    # to tap correctly on mobile, and are just as quick to use on a laptop.
+    age = st.slider("Age (years)", 1, 100, P["age"],
+                    help="The patient's age in years. This tool works best for adults "
+                         "roughly 30-65 years old, which is what it was trained on.")
+    gender = st.radio("Gender", [0, 1], index=P["gender"], horizontal=True,
+                      format_func=lambda x: "Female" if x == 0 else "Male")
+    height = st.slider("Height (cm)", 140, 200, P["height"],
+                       help="Example: 165 cm is about 5 feet 5 inches.")
+    weight = st.slider("Weight (kg)", 40, 150, P["weight"],
+                       help="Example: 70 kg is about 154 pounds.")
+    ap_hi = st.slider("Systolic BP — the top number", 90, 200, P["ap_hi"],
+                      help="The TOP number on a blood pressure reading, e.g. the '120' "
+                           "in '120/80'. Ask your doctor or check a home BP monitor.")
+    ap_lo = st.slider("Diastolic BP — the bottom number", 60, 130, P["ap_lo"],
+                      help="The BOTTOM number on a blood pressure reading, e.g. the '80' "
+                           "in '120/80'.")
 
     lvl = {1: "1 – Normal", 2: "2 – Above normal", 3: "3 – Well above normal"}
-    cholesterol = st.selectbox("Cholesterol", [1, 2, 3], index=P["cholesterol"] - 1,
-                               format_func=lambda x: lvl[x])
-    gluc = st.selectbox("Glucose", [1, 2, 3], index=P["gluc"] - 1, format_func=lambda x: lvl[x])
+    cholesterol = st.selectbox("Cholesterol level", [1, 2, 3], index=P["cholesterol"] - 1,
+                               format_func=lambda x: lvl[x],
+                               help="From a blood test report. Choose 1 if your report says "
+                                    "'normal', 2 for 'above normal', 3 for 'well above normal'.")
+    gluc = st.selectbox("Glucose (blood sugar) level", [1, 2, 3], index=P["gluc"] - 1,
+                        format_func=lambda x: lvl[x],
+                        help="From a blood test report, same scale as cholesterol above.")
 
-    c3, c4, c5 = st.columns(3)
-    smoke = int(c3.checkbox("Smokes", bool(P["smoke"])))
-    alco = int(c4.checkbox("Alcohol", bool(P["alco"])))
-    active = int(c5.checkbox("Active", bool(P["active"])))
+    st.caption("Lifestyle")
+    smoke = int(st.checkbox("🚬 Smokes", bool(P["smoke"])))
+    alco = int(st.checkbox("🍷 Drinks alcohol", bool(P["alco"])))
+    active = int(st.checkbox("🏃 Physically active", bool(P["active"]),
+                             help="Check this if the patient exercises regularly "
+                                  "(for example, a few times a week)."))
 
     if ap_lo >= ap_hi:
-        st.error("The lower BP number must be smaller than the upper one.")
+        st.error("⚠️ The bottom number must be smaller than the top number. "
+                 "Please check your blood pressure values.")
         ap_lo = ap_hi - 20
 
     PATIENT = dict(age=age, gender=gender, height=height, weight=weight, ap_hi=ap_hi,
@@ -375,20 +407,29 @@ with st.sidebar:
     bmi_now = round(weight / ((height / 100) ** 2), 2)
     st.info(f"**BMI:** {bmi_now}  |  **Pulse pressure:** {ap_hi - ap_lo} mmHg")
 
-    # The models were only ever shown patients with BMI between 15 and 50
-    # (values outside that were removed as data-entry errors during cleaning,
-    # see notebook 02). Height and weight sliders are independent, so it is
-    # still possible to build a combination outside that range — flag it
-    # honestly rather than presenting an extrapolated guess as a solid answer.
+    # The models were only ever shown adult patients roughly 30-65 years old
+    # with BMI between 15 and 50 (see notebook 02's cleaning rules). The
+    # sliders above are deliberately wider so anyone can explore the app, but
+    # a value far outside that trained range means the model is guessing
+    # blind rather than predicting — flag it honestly instead of hiding it.
+    AGE_TRAIN_MIN, AGE_TRAIN_MAX = 30.0, 65.0
     BMI_TRAIN_MIN, BMI_TRAIN_MAX = 15.0, 50.0
-    in_distribution = BMI_TRAIN_MIN <= bmi_now <= BMI_TRAIN_MAX
+    age_ok = AGE_TRAIN_MIN <= age <= AGE_TRAIN_MAX
+    bmi_ok = BMI_TRAIN_MIN <= bmi_now <= BMI_TRAIN_MAX
+    in_distribution = age_ok and bmi_ok
     st.session_state["in_distribution"] = in_distribution
     if not in_distribution:
+        problems = []
+        if not age_ok:
+            problems.append(f"age {age:.0f} (trained range: {AGE_TRAIN_MIN:.0f}–{AGE_TRAIN_MAX:.0f})")
+        if not bmi_ok:
+            problems.append(f"BMI {bmi_now} (trained range: {BMI_TRAIN_MIN:.0f}–{BMI_TRAIN_MAX:.0f})")
+        verb = "falls" if len(problems) == 1 else "fall"
         st.warning(
-            f"⚠️ A BMI of {bmi_now} falls outside the training data's range "
-            f"({BMI_TRAIN_MIN:.0f}–{BMI_TRAIN_MAX:.0f}). The models have never seen a "
-            "patient built this way, so predictions below are an **extrapolation** — "
-            "expect the three models to disagree more than usual.")
+            f"⚠️ This patient's " + " and ".join(problems) + f" {verb} outside what the "
+            "models were trained on. The prediction below is an **extrapolation** — "
+            "expect the three models to disagree more than usual, and treat the result "
+            "with extra caution.")
 
 X_patient = build_patient_row(PATIENT)
 
@@ -610,7 +651,7 @@ elif PAGE == "🩺 Patient Prediction":
 
     ood = not st.session_state.get("in_distribution", True)
     ood_note = ("" if not ood else
-                " This patient's BMI falls outside the range the models were trained on "
+                " This patient's age or BMI falls outside the range the models were trained on "
                 "(see the sidebar warning), which is almost certainly why the disagreement "
                 "is larger than usual.")
     st.markdown(f"""<div class="{box}"><b>Do the models agree?</b> The highest and lowest
@@ -1237,11 +1278,15 @@ BMI and pulse pressure are calculated automatically.""")
         out["Prediction"] = np.where(avg >= .5, "Heart disease likely", "Healthy")
 
         # Same safeguard as the single-patient page: the models were only ever
-        # trained on BMI 15-50 (notebook 02's cleaning rules). A row outside
-        # that range is an extrapolation, not a normal prediction, and is
-        # exactly where the three models tend to disagree most sharply.
+        # trained on adults roughly 30-65 years old with BMI 15-50 (notebook
+        # 02's cleaning rules). A row outside that range is an extrapolation,
+        # not a normal prediction, and is exactly where the three models tend
+        # to disagree most sharply.
+        AGE_TRAIN_MIN, AGE_TRAIN_MAX = 30.0, 65.0
         BMI_TRAIN_MIN, BMI_TRAIN_MAX = 15.0, 50.0
-        out["In training range"] = out["BMI"].between(BMI_TRAIN_MIN, BMI_TRAIN_MAX)
+        age_in_range = out["age"].between(AGE_TRAIN_MIN, AGE_TRAIN_MAX)
+        bmi_in_range = out["BMI"].between(BMI_TRAIN_MIN, BMI_TRAIN_MAX)
+        out["In training range"] = age_in_range & bmi_in_range
         n_ood = int((~out["In training range"]).sum())
 
         section("3️⃣ Results")
@@ -1256,8 +1301,9 @@ BMI and pulse pressure are calculated automatically.""")
 
         if n_ood:
             st.warning(
-                f"⚠️ **{n_ood:,} patient(s)** have a BMI outside the training range "
-                f"({BMI_TRAIN_MIN:.0f}–{BMI_TRAIN_MAX:.0f}). Their predictions are "
+                f"⚠️ **{n_ood:,} patient(s)** have an age or BMI outside the training range "
+                f"(age {AGE_TRAIN_MIN:.0f}–{AGE_TRAIN_MAX:.0f}, BMI "
+                f"{BMI_TRAIN_MIN:.0f}–{BMI_TRAIN_MAX:.0f}). Their predictions are "
                 f"extrapolations and typically show a wider gap between the three models — "
                 f"look for `In training range = False` in the table below and treat those "
                 f"rows with extra caution rather than trusting the average blindly.")
@@ -1766,6 +1812,7 @@ Using **both** and checking they agree is what turns a good project into a rigor
 │   └── cleaned_data.csv     ← the cleaned version, used by the dashboard
 ├── requirements.txt
 ├── LICENSE
+├── Demo_QA_Study_Guide.pdf  ← 61-question viva prep guide
 └── README.md""", language="text")
 
     section("🚀 How to run it")
