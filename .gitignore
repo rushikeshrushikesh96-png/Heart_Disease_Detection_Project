@@ -6,3 +6,4 @@ __pycache__/
 # runtime secrets/cache should ever be excluded here.
 .streamlit/secrets.toml
 venv/
+app.py
