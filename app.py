@@ -107,6 +107,19 @@ st.markdown("""
   padding:12px 18px; border-radius:10px; margin:28px 0 10px 0;
 }
 
+/* Colored input-form section headers on the Patient Prediction page — one
+   accent color per group of fields, so the form reads as organized rather
+   than one long list, and feels lively rather than clinical-gray. */
+.field-head {
+  font-size:15.5px; font-weight:800; padding:8px 14px; border-radius:8px;
+  margin:14px 0 8px 0; color:white !important; display:inline-block;
+}
+.field-head.identity {background:linear-gradient(90deg,#3B82F6,#60A5FA);}
+.field-head.basics   {background:linear-gradient(90deg,#8B5CF6,#A78BFA);}
+.field-head.vitals   {background:linear-gradient(90deg,#EF4444,#F87171);}
+.field-head.labs     {background:linear-gradient(90deg,#F59E0B,#FBBF24);}
+.field-head.lifestyle{background:linear-gradient(90deg,#22C55E,#4ADE80);}
+
 /* Keep every custom box readable in dark mode too */
 .note, .good, .warn, .bad, .note b, .good b, .warn b, .bad b,
 .note i, .good i, .warn i, .bad i, .note code, .good code {
@@ -136,6 +149,7 @@ div[data-testid="stMetricValue"] {font-size:26px;}
   .kpi .value {font-size:22px;}
   .kpi .label {font-size:11px;}
   .sec {font-size:17px; padding:10px 14px;}
+  .field-head {font-size:13.5px; padding:6px 11px;}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -245,7 +259,7 @@ def risk_band(p):
 
 
 def build_patient_row(v):
-    """Turn the sidebar inputs into one row with the exact 11 model features."""
+    """Turn the Patient Prediction page's form inputs into one row with the exact 11 model features."""
     bmi = round(v["weight"] / ((v["height"] / 100) ** 2), 2)
     row = {
         "age_years": float(v["age"]),
@@ -343,94 +357,20 @@ with st.sidebar:
         label_visibility="collapsed")
 
     st.divider()
-    st.markdown("### 🧾 Patient details")
-    st.caption("👉 Fill in the details below, then open **Patient Prediction** to see the result.")
+    st.info("👉 Open **🩺 Patient Prediction** to enter a patient's details and see "
+            "the result — the form is right there on the page.")
 
-    preset = st.selectbox("Quick example (optional)", ["Custom", "Healthy young adult",
-                                            "Average middle-aged", "High-risk senior"],
-                          help="Pick a ready-made example to try the app instantly, or "
-                               "choose 'Custom' and fill in your own numbers below.")
-    P = {"Healthy young adult": dict(age=32, gender=0, height=165, weight=58, ap_hi=112,
-                                     ap_lo=72, cholesterol=1, gluc=1, smoke=0, alco=0, active=1),
-         "Average middle-aged": dict(age=52, gender=1, height=172, weight=80, ap_hi=130,
-                                     ap_lo=85, cholesterol=1, gluc=1, smoke=0, alco=0, active=1),
-         "High-risk senior": dict(age=64, gender=1, height=168, weight=97, ap_hi=170,
-                                  ap_lo=100, cholesterol=3, gluc=3, smoke=1, alco=1, active=0),
-         }.get(preset, dict(age=50, gender=0, height=165, weight=72, ap_hi=125, ap_lo=82,
-                            cholesterol=1, gluc=1, smoke=0, alco=0, active=1))
+# A patient is shared across the Prediction, SHAP and LIME pages so all three
+# explain the same person. The Prediction page is where it's actually filled
+# in; everywhere else just reads back whatever was last entered there.
+DEFAULT_PATIENT = dict(name="", address="", age=50, gender=0, height=165, weight=72,
+                       ap_hi=125, ap_lo=82, cholesterol=1, gluc=1, smoke=0, alco=0, active=1)
+if "patient" not in st.session_state:
+    st.session_state["patient"] = DEFAULT_PATIENT.copy()
+if "in_distribution" not in st.session_state:
+    st.session_state["in_distribution"] = True
 
-    # Single-column layout on purpose: side-by-side sliders get cramped and
-    # hard to drag accurately on a phone screen. Stacked controls are easier
-    # to tap correctly on mobile, and are just as quick to use on a laptop.
-    age = st.slider("Age (years)", 1, 100, P["age"],
-                    help="The patient's age in years. This tool works best for adults "
-                         "roughly 30-65 years old, which is what it was trained on.")
-    gender = st.radio("Gender", [0, 1], index=P["gender"], horizontal=True,
-                      format_func=lambda x: "Female" if x == 0 else "Male")
-    height = st.slider("Height (cm)", 140, 200, P["height"],
-                       help="Example: 165 cm is about 5 feet 5 inches.")
-    weight = st.slider("Weight (kg)", 40, 150, P["weight"],
-                       help="Example: 70 kg is about 154 pounds.")
-    ap_hi = st.slider("Systolic BP — the top number", 90, 200, P["ap_hi"],
-                      help="The TOP number on a blood pressure reading, e.g. the '120' "
-                           "in '120/80'. Ask your doctor or check a home BP monitor.")
-    ap_lo = st.slider("Diastolic BP — the bottom number", 60, 130, P["ap_lo"],
-                      help="The BOTTOM number on a blood pressure reading, e.g. the '80' "
-                           "in '120/80'.")
-
-    lvl = {1: "1 – Normal", 2: "2 – Above normal", 3: "3 – Well above normal"}
-    cholesterol = st.selectbox("Cholesterol level", [1, 2, 3], index=P["cholesterol"] - 1,
-                               format_func=lambda x: lvl[x],
-                               help="From a blood test report. Choose 1 if your report says "
-                                    "'normal', 2 for 'above normal', 3 for 'well above normal'.")
-    gluc = st.selectbox("Glucose (blood sugar) level", [1, 2, 3], index=P["gluc"] - 1,
-                        format_func=lambda x: lvl[x],
-                        help="From a blood test report, same scale as cholesterol above.")
-
-    st.caption("Lifestyle")
-    smoke = int(st.checkbox("🚬 Smokes", bool(P["smoke"])))
-    alco = int(st.checkbox("🍷 Drinks alcohol", bool(P["alco"])))
-    active = int(st.checkbox("🏃 Physically active", bool(P["active"]),
-                             help="Check this if the patient exercises regularly "
-                                  "(for example, a few times a week)."))
-
-    if ap_lo >= ap_hi:
-        st.error("⚠️ The bottom number must be smaller than the top number. "
-                 "Please check your blood pressure values.")
-        ap_lo = ap_hi - 20
-
-    PATIENT = dict(age=age, gender=gender, height=height, weight=weight, ap_hi=ap_hi,
-                   ap_lo=ap_lo, cholesterol=cholesterol, gluc=gluc, smoke=smoke,
-                   alco=alco, active=active)
-    st.session_state["patient"] = PATIENT
-
-    bmi_now = round(weight / ((height / 100) ** 2), 2)
-    st.info(f"**BMI:** {bmi_now}  |  **Pulse pressure:** {ap_hi - ap_lo} mmHg")
-
-    # The models were only ever shown adult patients roughly 30-65 years old
-    # with BMI between 15 and 50 (see notebook 02's cleaning rules). The
-    # sliders above are deliberately wider so anyone can explore the app, but
-    # a value far outside that trained range means the model is guessing
-    # blind rather than predicting — flag it honestly instead of hiding it.
-    AGE_TRAIN_MIN, AGE_TRAIN_MAX = 30.0, 65.0
-    BMI_TRAIN_MIN, BMI_TRAIN_MAX = 15.0, 50.0
-    age_ok = AGE_TRAIN_MIN <= age <= AGE_TRAIN_MAX
-    bmi_ok = BMI_TRAIN_MIN <= bmi_now <= BMI_TRAIN_MAX
-    in_distribution = age_ok and bmi_ok
-    st.session_state["in_distribution"] = in_distribution
-    if not in_distribution:
-        problems = []
-        if not age_ok:
-            problems.append(f"age {age:.0f} (trained range: {AGE_TRAIN_MIN:.0f}–{AGE_TRAIN_MAX:.0f})")
-        if not bmi_ok:
-            problems.append(f"BMI {bmi_now} (trained range: {BMI_TRAIN_MIN:.0f}–{BMI_TRAIN_MAX:.0f})")
-        verb = "falls" if len(problems) == 1 else "fall"
-        st.warning(
-            f"⚠️ This patient's " + " and ".join(problems) + f" {verb} outside what the "
-            "models were trained on. The prediction below is an **extrapolation** — "
-            "expect the three models to disagree more than usual, and treat the result "
-            "with extra caution.")
-
+PATIENT = st.session_state["patient"]
 X_patient = build_patient_row(PATIENT)
 
 
@@ -595,12 +535,140 @@ if PAGE == "🏠 Dashboard":
 # ===============================================================
 elif PAGE == "🩺 Patient Prediction":
     hero("🩺 Patient Risk Prediction",
-         "All three models give their opinion at the same time — change the sliders on the left")
+         "Fill in the details below — all three models react instantly as you change them")
+
+    section("🧾 Enter patient details")
+    st.caption("Nothing you type here is stored or sent anywhere — it only stays on your "
+              "screen for as long as this tab is open.")
+
+    # Every field below uses an explicit `key=` tied to st.session_state, and
+    # is seeded (via setdefault) from the patient already saved in
+    # st.session_state["patient"] rather than a fresh hardcoded default. This
+    # matters because Streamlit quietly drops a widget's state whenever that
+    # widget isn't drawn on a given rerun — which happens every time the
+    # person switches to a different page in this app. Without this, going
+    # to check the SHAP page and coming back would silently reset every
+    # field the person had just filled in.
+    saved = st.session_state["patient"]
+    PRESETS = {"Healthy young adult": dict(age=32, gender=0, height=165, weight=58, ap_hi=112,
+                                           ap_lo=72, cholesterol=1, gluc=1, smoke=0, alco=0, active=1),
+              "Average middle-aged": dict(age=52, gender=1, height=172, weight=80, ap_hi=130,
+                                          ap_lo=85, cholesterol=1, gluc=1, smoke=0, alco=0, active=1),
+              "High-risk senior": dict(age=64, gender=1, height=168, weight=97, ap_hi=170,
+                                       ap_lo=100, cholesterol=3, gluc=3, smoke=1, alco=1, active=0)}
+    FIELD_KEYS = ["age", "gender", "height", "weight", "ap_hi", "ap_lo",
+                 "cholesterol", "gluc", "smoke", "alco", "active"]
+    for fk in FIELD_KEYS:
+        st.session_state.setdefault(f"pp_{fk}", saved.get(fk, DEFAULT_PATIENT[fk]))
+    st.session_state.setdefault("pp_name", saved.get("name", ""))
+    st.session_state.setdefault("pp_address", saved.get("address", ""))
+    st.session_state.setdefault("pp_last_preset", "Custom")
+
+    preset = st.selectbox("✨ Try an example, or fill in your own below", ["Custom",
+                          "Healthy young adult", "Average middle-aged", "High-risk senior"],
+                          key="pp_preset",
+                          help="Pick a ready-made example to see the app in action instantly, "
+                               "or choose 'Custom' and enter your own numbers.")
+    # Apply a preset's values exactly once, the moment it's newly selected —
+    # not on every rerun — so a person can still fine-tune a slider afterward
+    # without it snapping back to the preset on their next click.
+    if preset != st.session_state["pp_last_preset"] and preset in PRESETS:
+        for fk, v in PRESETS[preset].items():
+            st.session_state[f"pp_{fk}"] = v
+    st.session_state["pp_last_preset"] = preset
+
+    st.markdown('<div class="field-head identity">🧾 Identity (optional)</div>',
+               unsafe_allow_html=True)
+    ic1, ic2 = st.columns(2)
+    patient_name = ic1.text_input("Patient name", key="pp_name",
+                                  placeholder="e.g. Rushikesh Sonawane",
+                                  help="Only used to label the downloaded PDF report.")
+    patient_address = ic2.text_input("Address", key="pp_address",
+                                     placeholder="e.g. Nagpur, Maharashtra",
+                                     help="Only used to label the downloaded PDF report.")
+
+    st.markdown('<div class="field-head basics">📏 Basic information</div>',
+               unsafe_allow_html=True)
+    # Age is capped at 30-65 on purpose: that is the actual age range present
+    # in the training dataset (verified: 29.6-64.9 years in the cleaned data).
+    # Going wider would let someone build a patient the model has never seen
+    # anything like, and silently hand back a number that looks like a
+    # prediction but is really just a guess.
+    bc1, bc2 = st.columns(2)
+    age = bc1.slider("Age (years)", 30, 65, key="pp_age",
+                     help="Limited to 30-65 because that is the actual age range in the "
+                          "training data — the dataset simply has no younger or older patients.")
+    gender = bc2.radio("Gender", [0, 1], key="pp_gender", horizontal=True,
+                       format_func=lambda x: "Female" if x == 0 else "Male")
+    bc3, bc4 = st.columns(2)
+    height = bc3.slider("Height (cm)", 140, 200, key="pp_height",
+                        help="Example: 165 cm is about 5 feet 5 inches.")
+    weight = bc4.slider("Weight (kg)", 40, 150, key="pp_weight",
+                        help="Example: 70 kg is about 154 pounds.")
+
+    st.markdown('<div class="field-head vitals">🩸 Blood pressure</div>',
+               unsafe_allow_html=True)
+    vc1, vc2 = st.columns(2)
+    ap_hi = vc1.slider("Systolic — the TOP number", 90, 200, key="pp_ap_hi",
+                       help="The TOP number on a blood pressure reading, e.g. the '120' "
+                            "in '120/80'. Ask your doctor or check a home BP monitor.")
+    ap_lo = vc2.slider("Diastolic — the BOTTOM number", 60, 130, key="pp_ap_lo",
+                       help="The BOTTOM number on a blood pressure reading, e.g. the '80' "
+                            "in '120/80'.")
+    if ap_lo >= ap_hi:
+        st.error("⚠️ The bottom number must be smaller than the top number. "
+                 "Please check your blood pressure values.")
+        ap_lo = ap_hi - 20
+
+    st.markdown('<div class="field-head labs">🧪 Lab results</div>', unsafe_allow_html=True)
+    lvl = {1: "1 – Normal", 2: "2 – Above normal", 3: "3 – Well above normal"}
+    lc1, lc2 = st.columns(2)
+    cholesterol = lc1.selectbox("Cholesterol level", [1, 2, 3], key="pp_cholesterol",
+                                format_func=lambda x: lvl[x],
+                                help="From a blood test report. Choose 1 for 'normal', 2 for "
+                                     "'above normal', 3 for 'well above normal'.")
+    gluc = lc2.selectbox("Glucose (blood sugar) level", [1, 2, 3], key="pp_gluc",
+                         format_func=lambda x: lvl[x],
+                         help="From a blood test report, same scale as cholesterol.")
+
+    st.markdown('<div class="field-head lifestyle">🏃 Lifestyle</div>', unsafe_allow_html=True)
+    sc1, sc2, sc3 = st.columns(3)
+    smoke = int(sc1.checkbox("🚬 Smokes", key="pp_smoke"))
+    alco = int(sc2.checkbox("🍷 Drinks alcohol", key="pp_alco"))
+    active = int(sc3.checkbox("Physically active", key="pp_active",
+                              help="Check this if the patient exercises regularly, "
+                                   "for example a few times a week."))
+
+    PATIENT = dict(name=patient_name.strip(), address=patient_address.strip(),
+                   age=age, gender=gender, height=height, weight=weight, ap_hi=ap_hi,
+                   ap_lo=ap_lo, cholesterol=cholesterol, gluc=gluc, smoke=smoke,
+                   alco=alco, active=active)
+    st.session_state["patient"] = PATIENT
+    X_patient = build_patient_row(PATIENT)
+
+    bmi_now = round(weight / ((height / 100) ** 2), 2)
+    st.info(f"**BMI:** {bmi_now}  |  **Pulse pressure:** {ap_hi - ap_lo} mmHg")
+
+    # The models were only ever shown adult patients with BMI between 15 and
+    # 50 (see notebook 02's cleaning rules). Age can no longer leave the
+    # trained 30-65 range (the slider itself is capped now), but height and
+    # weight are still independent sliders, so BMI can still land outside
+    # 15-50 — flag it honestly instead of hiding it.
+    BMI_TRAIN_MIN, BMI_TRAIN_MAX = 15.0, 50.0
+    in_distribution = BMI_TRAIN_MIN <= bmi_now <= BMI_TRAIN_MAX
+    st.session_state["in_distribution"] = in_distribution
+    if not in_distribution:
+        st.warning(
+            f"⚠️ A BMI of {bmi_now} falls outside the training data's range "
+            f"({BMI_TRAIN_MIN:.0f}–{BMI_TRAIN_MAX:.0f}). The models have never seen a "
+            "patient built this way, so predictions below are an **extrapolation** — "
+            "expect the three models to disagree more than usual.")
 
     probs = predict_all(X_patient.values)
     vals = {k: float(v[0]) for k, v in probs.items()}
     avg = float(np.mean(list(vals.values())))
     label, colour, advice = risk_band(avg)
+
     spread = max(vals.values()) - min(vals.values())
 
     st.markdown(f"""<div class="verdict" style="background:linear-gradient(135deg,{colour},
@@ -651,8 +719,8 @@ elif PAGE == "🩺 Patient Prediction":
 
     ood = not st.session_state.get("in_distribution", True)
     ood_note = ("" if not ood else
-                " This patient's age or BMI falls outside the range the models were trained on "
-                "(see the sidebar warning), which is almost certainly why the disagreement "
+                " This patient's BMI falls outside the range the models were trained on "
+                "(see the warning above), which is almost certainly why the disagreement "
                 "is larger than usual.")
     st.markdown(f"""<div class="{box}"><b>Do the models agree?</b> The highest and lowest
     predictions are <b>{spread*100:.1f} percentage points</b> apart, which means
@@ -780,13 +848,19 @@ elif PAGE == "🩺 Patient Prediction":
 
         # -------- patient information --------
         story.append(Paragraph("PATIENT INFORMATION", head_style))
+        name_display = patient.get("name") or "Not provided"
+        address_display = patient.get("address") or "Not provided"
+        id_row_style = ParagraphStyle("IDRow", parent=body_style, fontSize=9.3)
         pinfo = [
+            ["Patient Name", Paragraph(name_display, id_row_style), "", ""],
+            ["Address", Paragraph(address_display, id_row_style), "", ""],
             ["Age", f"{patient['age']:.0f} Years", "Sex", "Male" if patient["gender"] else "Female"],
             ["Height", f"{patient['height']} cm", "Weight", f"{patient['weight']} kg"],
             ["BMI", f"{bmi_v} kg/m\u00b2", "Report Date", datetime.now().strftime("%d %b %Y")],
         ]
         pt = Table(pinfo, colWidths=[2.6*cm, 5.7*cm, 2.6*cm, 5.7*cm])
         pt.setStyle(TableStyle([
+            ("SPAN", (1,0), (3,0)), ("SPAN", (1,1), (3,1)),
             ("FONTNAME", (0,0), (0,-1), "Helvetica-Bold"), ("FONTNAME", (2,0), (2,-1), "Helvetica-Bold"),
             ("FONTSIZE", (0,0), (-1,-1), 9.3), ("TEXTCOLOR", (0,0), (-1,-1), colors.HexColor("#1E293B")),
             ("GRID", (0,0), (-1,-1), 0.5, BORDER),
@@ -934,6 +1008,8 @@ elif PAGE == "🩺 Patient Prediction":
 elif PAGE == "🧠 SHAP Explanation":
     hero("🧠 SHAP — Which measurement pushed the answer up or down?",
          "SHAP splits the final prediction into one fair share for every health measurement")
+    st.caption("ℹ️ Explaining the patient entered on the 🩺 **Patient Prediction** page. "
+              "Go there to change the patient's details.")
 
     st.markdown("""<div class="note">
     <b>SHAP in one sentence:</b> imagine the models start from the <i>average patient</i> and then
@@ -1079,6 +1155,8 @@ elif PAGE == "🧠 SHAP Explanation":
 elif PAGE == "🍋 LIME Explanation":
     hero("🍋 LIME — A simple rule-based explanation for this one patient",
          "LIME builds a tiny, easy model that copies the big model just around your patient")
+    st.caption("ℹ️ Explaining the patient entered on the 🩺 **Patient Prediction** page. "
+              "Go there to change the patient's details.")
 
     st.markdown("""<div class="note">
     <b>LIME in one sentence:</b> the real model may be complicated, but if you zoom in very close
